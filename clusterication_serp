@@ -1,0 +1,95 @@
+# Файл с расширением csv, utf-8 (;), три колонки, верхняя строчка Запрос | Урл | Частота 
+
+import os
+import csv
+import xlsxwriter
+import datetime 
+
+currentDT = datetime.datetime.now() 
+mm = str(currentDT.minute) 
+h = str(currentDT.hour) 
+d = str(currentDT.day) 
+m = str(currentDT.month) 
+y = str(currentDT.year) 
+dt = str(h +'-'+mm +'_'+d +'-'+ m +'-'+ y) 
+print ('Data -',dt)
+
+
+keywords_urls = []
+keywords_value = {}
+keywords = [] 
+
+nonCluster = []
+addCluster = []
+addClusterTmp = []
+addListKeys = []
+
+def getList(dict): 
+    list = [] 
+    for key in dict.keys(): 
+        list.append(key)      
+    return list
+def getfile(file):
+    with open(file, encoding="utf8") as csvfile:
+        spamreader = csv.reader(csvfile, delimiter=";")
+        next(spamreader)
+        for row in spamreader:
+            keywords_val = {}
+            keywords_url = {}
+            item = row[0].strip().replace('\ufeff', '')
+            url = row[1]
+            value = row[2]
+            keywords_value[item] = value
+            keywords_url[item] = url
+            keywords_urls.append(keywords_url)
+
+    csvfile.close()
+    keywords = getList(keywords_value)
+
+    cluster = ('Grope', 'Keys','Value', 'TOP matches')
+    addCluster.append(cluster)
+
+    print('Размер списка ключей - ', len(keywords))
+    for idx, i in enumerate(keywords[:]):
+        onlyUrls1 = list(map(lambda x: x[i], list(filter(lambda x: x.setdefault(i), keywords_urls))))
+        if (i in addListKeys):
+            #print(testcluster,'- Уже добавлен')
+            continue
+        else:
+            cluster = (i,len(onlyUrls1),'- etalon')
+            addCluster.append(cluster)
+            print(i,'-',len(onlyUrls1),'- etalon')
+            addClusterTmp.clear()
+            for j in keywords:
+                onlyUrls = list(map(lambda x: x[j], list(filter(lambda x: x.setdefault(j), keywords_urls))))
+                if (len(list(set(onlyUrls1) & set(onlyUrls)))>2):
+                    onlyVal = keywords_value[j]
+                    print(j,';', len(list(set(onlyUrls1) & set(onlyUrls))))
+                    cluster = (i, j, onlyVal, len(list(set(onlyUrls1) & set(onlyUrls))))
+                    addCluster.append(cluster)
+                    addClusterTmp.append(j)
+                    addListKeys.append(j)
+
+            try:
+                kilcluster = (i,len(onlyUrls1),'- etalon')
+                addCluster.remove(kilcluster)                        
+            except: 
+                print ('Ошибка удаления дубля єталона', (i,len(onlyUrls1)))
+                pass
+            for g in addClusterTmp:
+                keywords.remove(g)
+
+    keywords = [tuple(set(keywords))]
+
+    with xlsxwriter.Workbook(dt+'test_filter.xlsx') as workbook:
+        worksheet = workbook.add_worksheet()
+        for row_num, data in enumerate(addCluster):
+            worksheet.write_row(row_num, 0, data)
+
+        worksheet = workbook.add_worksheet()
+        for row_num, data in enumerate(keywords):
+            worksheet.write_row(row_num, 0, data)
+    os.startfile(dt+'test_filter.xlsx')
+
+file = input ("Input file name: ")
+getfile(file) #'fileName.csv'
