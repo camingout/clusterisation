@@ -1,0 +1,248 @@
+#файл keys-for-klaster.csv
+#файл Proxy_HTTP.txt
+
+from selenium.webdriver.support.wait import WebDriverWait
+import json
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import time
+import datetime
+import os
+from IPython.display import clear_output
+import csv
+import secrets
+import zipfile
+import xlsxwriter
+
+
+currentDT = datetime.datetime.now()
+mm = str(currentDT.minute)
+h = str(currentDT.hour)
+d = str(currentDT.day)
+m = str(currentDT.month)
+y = str(currentDT.year)
+dt = str(h +'-'+mm +'_'+d +'-'+ m +'-'+ y)
+print ('Data -',dt)
+
+#раскомментировать регион поиска и язык
+#zone = 'ca'
+zone = 'co.uk'
+#zone = 'ru'
+#zone = 'com.ua'
+#для финального файла
+#lan ='uk_UA'
+#lan ='ru_RU'
+#lan ='en_US'
+#lan ='en_CA'
+lan ='en_UK'
+
+fil = str(lan+'.google.'+zone+ dt+'.csv')
+
+# options = Options()
+# options.add_argument("start-maximized")
+# options.add_argument("disable-infobars")
+#options.add_experimental_option('prefs', {'intl.accept_languages': 'uk,uk_UA'})
+# options.add_experimental_option('prefs', {'intl.accept_languages': 'ru,ru_RU'})
+#options.add_experimental_option('prefs', {'intl.accept_languages': 'en,en_CA'})
+
+
+inindex =[]
+notindex = []
+noindex = []
+
+
+with open('Proxy_HTTP.txt', 'r', encoding="utf-8") as f:
+    proxies1 = list(filter(lambda x: len(x.strip()) > 0, f))
+proxies2 = list(map(lambda x: x.replace('\n', '').replace(' ', ''), proxies1))
+pro = {}
+for g in proxies2:
+    k = g.split(':')[0]
+    v = g.split(':')[1]
+    pro[k] = v
+PROXY_HTTP = pro.pop('ProxyType')
+PROXY_USER = pro.pop('Login')  # username
+PROXY_PASS = pro.pop('Password') # password tipfoto
+proxies = list(map(lambda x: x, pro.keys()))
+PROXY_HOST = secrets.choice(proxies)
+PROXY_PORT = int(list(map(lambda x: x, pro.values()))[0])
+print(PROXY_HOST)
+manifest_json = """
+{
+    "version": "1.0.0",
+    "manifest_version": 2,
+    "name": "Chrome Proxy",
+    "permissions": [
+        "proxy",
+        "tabs",
+        "unlimitedStorage",
+        "storage",
+        "<all_urls>",
+        "webRequest",
+        "webRequestBlocking"
+    ],
+    "background": {
+        "scripts": ["background.js"]
+    },
+    "minimum_chrome_version":"22.0.0"
+}
+"""
+
+background_js = """
+var config = {
+        mode: "fixed_servers",
+        rules: {
+        singleProxy: {
+            scheme: "http",
+            host: "%s",
+            port: parseInt(%s)
+        },
+        bypassList: ["localhost"]
+        }
+    };
+
+chrome.proxy.settings.set({value: config, scope: "regular"}, function() {});
+
+function callbackFn(details) {
+    return {
+        authCredentials: {
+            username: "%s",
+            password: "%s"
+        }
+    };
+}
+
+chrome.webRequest.onAuthRequired.addListener(
+            callbackFn,
+            {urls: ["<all_urls>"]},
+            ['blocking']
+);
+""" % (PROXY_HOST, PROXY_PORT, PROXY_USER, PROXY_PASS)
+
+
+def acp_api_send_request(driver, message_type, data={}):
+    message = {
+        # всегда указывается именно этот получатель API сообщения
+        'receiver': 'antiCaptchaPlugin',
+        # тип запроса, например setOptions
+        'type': message_type,
+        # мерджим с дополнительными данными
+        **data
+    }
+    # выполняем JS код на странице
+    # а именно отправляем сообщение стандартным методом window.postMessage
+    return driver.execute_script("""
+    return window.postMessage({});
+    """.format(json.dumps(message)))
+
+# create your webdriver
+def savefile(inindex):
+    with open(fil, 'a', encoding="utf-8") as f:
+        w = csv.writer(f, lineterminator='\n')
+        #wr = csv.writer(f, quoting=csv.QUOTE_ALL)
+        #wr.writerow(inindex)
+        for item in inindex:
+            w.writerow([item])
+
+    f.close()
+    inindex.clear()
+    clear_output(wait=True)
+
+def parse_result(result_stats, query, value):    
+    print(len(result_stats))
+    if (len(result_stats) == 0):
+        print ('Пусто')
+        url_filter = 'Нет результатов'
+        inindex.append(query + ';' + url_filter)
+        savefile(inindex)
+        time.sleep(1)
+    else:
+        for links in result_stats:
+            #print('Результатів:', len(inindex))
+                
+            if (len(inindex) > 10): break
+            url_filter = links.get_attribute('href')
+            if 'translate' in url_filter: continue
+            print(query, url_filter)
+            inindex.append(query + ';' + url_filter + ';' + value)
+        savefile(inindex)
+def get_chromedriver(use_proxy=False, user_agent=None):
+    path = os.path.dirname(os.path.abspath(r"C:\Users\lids1\Desktop\Python\selenium\chrome\chromedriver"))
+    chrome_options = webdriver.ChromeOptions()
+    #chrome_options.add_argument("start-maximized")
+    PROXY_HOST = secrets.choice(proxies)
+    if use_proxy:
+        pluginfile = 'proxy_auth_plugin.zip'
+        with zipfile.ZipFile(pluginfile, 'w') as zp:
+            zp.writestr("manifest.json", manifest_json)
+            zp.writestr("background.js", background_js)
+        chrome_options.add_extension(pluginfile)
+    if user_agent:
+        chrome_options.add_argument('--user-agent=%s' % user_agent)
+    driver = webdriver.Chrome(
+        os.path.join(path, 'chromedriver'),
+        chrome_options=chrome_options)
+    return driver
+
+def get_driver(query, value):
+    driver = get_chromedriver(use_proxy=True)
+    try:
+        driver.get('https://www.google.' + zone)
+        time.sleep(1)
+        search_box = driver.find_element_by_name('q')
+        search_box.send_keys(query)
+        search_box.submit()
+        time.sleep(1)
+        result_search = driver.find_elements_by_xpath("//form[@id='captcha-form']")
+        if (result_search):
+            print ('Reboot proxy')
+            time.sleep(1)
+            driver.close()
+            try: os.system("taskkill /im chromedriver.exe")
+            except: pass
+            get_driver(query, value)
+        else:
+            result_stats = driver.find_elements_by_xpath("//div[@class='r']/a")
+            parse_result(result_stats, query, value)
+            time.sleep(1)
+            driver.close()
+            try: os.system("taskkill /im chromedriver.exe")
+            except: pass
+            return
+    except:
+        driver.close()
+        time.sleep(10)
+        try: os.system("taskkill /im chromedriver.exe")
+        except: pass
+        get_driver(query, value)
+        pass
+def read_queries_list_from_file(filename):
+    f = open( filename, mode = 'r', encoding = 'utf-8' )    
+    return [x.strip() for x in f]
+
+keywords_value = {}
+def getkeys(file):
+    i = 0
+    with open(file, encoding="utf8") as csvfile:
+        spamreader = csv.reader(csvfile, delimiter=";")
+        next(spamreader)
+        for row in spamreader:
+            i += 1
+            print('Done -', i)
+            query = row[0].strip().replace('\ufeff', '')
+            value = row[1]
+            get_driver(query, value)
+
+cluster = 'Keys' + ';' + 'Url' + ';' + 'Value'
+inindex.append(cluster)
+savefile(inindex)
+getkeys('keys-for-cluster.csv')
+
+import psutil
+
+PROCNAME = "chromedriver.exe"
+
+for proc in psutil.process_iter():
+    if proc.name == PROCNAME:
+        proc.kill()
+        
+os.startfile(fil)        
