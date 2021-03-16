@@ -42,7 +42,7 @@ fil = str(lan+'.google.'+zone+ dt+'.csv')
 # options.add_argument("start-maximized")
 # options.add_argument("disable-infobars")
 #options.add_experimental_option('prefs', {'intl.accept_languages': 'uk,uk_UA'})
-# options.add_experimental_option('prefs', {'intl.accept_languages': 'ru,ru_RU'})
+#options.add_experimental_option('prefs', {'intl.accept_languages': 'ru,ru_RU'})
 #options.add_experimental_option('prefs', {'intl.accept_languages': 'en,en_CA'})
 
 
@@ -166,7 +166,7 @@ def parse_result(result_stats, query, value):
             inindex.append(query + ';' + url_filter + ';' + value)
         savefile(inindex)
 def get_chromedriver(use_proxy=False, user_agent=None):
-    path = os.path.dirname(os.path.abspath(r"C:\Users\lids1\Desktop\Python\selenium\chrome\chromedriver"))
+    path = os.path.dirname(os.path.abspath(r"C:\Шлях_до_файлу\chromedriver"))
     chrome_options = webdriver.ChromeOptions()
     #chrome_options.add_argument("start-maximized")
     PROXY_HOST = secrets.choice(proxies)
@@ -197,22 +197,26 @@ def get_driver(query, value):
             print ('Reboot proxy')
             time.sleep(1)
             driver.close()
-            try: os.system("taskkill /im chromedriver.exe")
-            except: pass
+            driver.quit()
+            #try: os.system("taskkill /im chromedriver.exe")
+            #except: pass
             get_driver(query, value)
         else:
-            result_stats = driver.find_elements_by_xpath("//div[@class='r']/a")
+            #result_stats = driver.find_elements_by_xpath("//div[@class='r']/a")
+            result_stats = driver.find_elements_by_xpath("//div[@class='yuRUbf']/a")
             parse_result(result_stats, query, value)
             time.sleep(1)
             driver.close()
-            try: os.system("taskkill /im chromedriver.exe")
-            except: pass
+            driver.quit()
+            #try: os.system("taskkill /im chromedriver.exe")
+            #except: pass
             return
     except:
         driver.close()
         time.sleep(10)
-        try: os.system("taskkill /im chromedriver.exe")
-        except: pass
+        driver.quit()
+        #try: os.system("taskkill /im chromedriver.exe")
+        #except: pass
         get_driver(query, value)
         pass
 def read_queries_list_from_file(filename):
@@ -236,6 +240,9 @@ cluster = 'Keys' + ';' + 'Url' + ';' + 'Value'
 inindex.append(cluster)
 savefile(inindex)
 getkeys('keys-for-cluster.csv')
+
+try: os.system("taskkill /im chromedriver.exe")
+except: pass
 
 import psutil
 
